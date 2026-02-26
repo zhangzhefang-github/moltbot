@@ -129,9 +129,14 @@ export function resolveGatewayCredentialsFromConfig(params: {
   const localPasswordPrecedence = params.localPasswordPrecedence ?? "env-first";
 
   if (mode === "local") {
+    // In local mode, prefer gateway.auth.token, but also accept gateway.remote.token
+    // as a fallback for cron commands and other local gateway clients.
+    // This allows users in remote mode to use a single token for all operations.
+    const fallbackToken = localToken ?? remoteToken;
+    const fallbackPassword = localPassword ?? remotePassword;
     const localResolved = resolveGatewayCredentialsFromValues({
-      configToken: localToken,
-      configPassword: localPassword,
+      configToken: fallbackToken,
+      configPassword: fallbackPassword,
       env,
       includeLegacyEnv,
       tokenPrecedence: localTokenPrecedence,
