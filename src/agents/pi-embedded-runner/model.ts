@@ -121,18 +121,34 @@ export function resolveModel(
   // Guard against models with undefined api field (e.g., from stale pi-ai cache or
   // incomplete model definitions). This prevents "No API provider registered for api: undefined"
   // errors when using fallback models like openrouter/google/gemini-3.1-pro.
+  //
+  // NOTE: This guard only auto-patches the api field for OpenRouter, as it's a known
+  // pass-through proxy that uses openai-completions. For other providers, we fail fast
+  // with a clear error rather than guessing the API and causing downstream issues.
   if (!model.api) {
-    log.warn(
-      `Model ${provider}/${modelId} has undefined api field. Using default API based on provider.`,
-    );
     const normalizedProvider = normalizeProviderId(provider);
-    const defaultApi =
-      normalizedProvider === "openrouter" ? "openai-completions" : "openai-responses";
-    const patchedModel: Model<Api> = {
-      ...model,
-      api: defaultApi,
+    if (normalizedProvider === "openrouter") {
+      // OpenRouter is a pass-through proxy; all its models use openai-completions.
+      log.warn(
+        `Model ${provider}/${modelId} has undefined api field. Using openai-completions for OpenRouter.`,
+      );
+      const patchedModel: Model<Api> = {
+        ...model,
+        api: "openai-completions",
+      };
+      return { model: normalizeModelCompat(patchedModel), authStorage, modelRegistry };
+    }
+
+    // For other providers, fail fast with a clear error. Guessing the API could
+    // route requests through the wrong transport (e.g., anthropic → openai-responses).
+    return {
+      error:
+        `Model ${provider}/${modelId} has incomplete definition: missing required 'api' field. ` +
+        `This may be due to a stale model cache or incomplete catalog entry. ` +
+        `Please update your pi-ai package or configure the model explicitly in your models.json.`,
+      authStorage,
+      modelRegistry,
     };
-    return { model: normalizeModelCompat(patchedModel), authStorage, modelRegistry };
   }
 
   return { model: normalizeModelCompat(model), authStorage, modelRegistry };
