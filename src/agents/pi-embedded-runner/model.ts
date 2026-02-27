@@ -9,6 +9,7 @@ import { normalizeModelCompat } from "../model-compat.js";
 import { resolveForwardCompatModel } from "../model-forward-compat.js";
 import { normalizeProviderId } from "../model-selection.js";
 import { discoverAuthStorage, discoverModels } from "../pi-model-discovery.js";
+import { log } from "./logger.js";
 
 type InlineModelEntry = ModelDefinitionConfig & {
   provider: string;
@@ -116,6 +117,24 @@ export function resolveModel(
       modelRegistry,
     };
   }
+
+  // Guard against models with undefined api field (e.g., from stale pi-ai cache or
+  // incomplete model definitions). This prevents "No API provider registered for api: undefined"
+  // errors when using fallback models like openrouter/google/gemini-3.1-pro.
+  if (!model.api) {
+    log.warn(
+      `Model ${provider}/${modelId} has undefined api field. Using default API based on provider.`,
+    );
+    const normalizedProvider = normalizeProviderId(provider);
+    const defaultApi =
+      normalizedProvider === "openrouter" ? "openai-completions" : "openai-responses";
+    const patchedModel: Model<Api> = {
+      ...model,
+      api: defaultApi,
+    };
+    return { model: normalizeModelCompat(patchedModel), authStorage, modelRegistry };
+  }
+
   return { model: normalizeModelCompat(model), authStorage, modelRegistry };
 }
 
