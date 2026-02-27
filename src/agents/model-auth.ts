@@ -286,6 +286,25 @@ export function resolveEnvApiKey(
     return { apiKey: value, source };
   };
 
+  if (normalized === "github-copilot") {
+    return pick("COPILOT_GITHUB_TOKEN") ?? pick("GH_TOKEN") ?? pick("GITHUB_TOKEN");
+  }
+
+  if (normalized === "anthropic") {
+    // Explicitly prioritize ANTHROPIC_OAUTH_TOKEN and ANTHROPIC_API_KEY
+    // Do NOT fall back to X_API_KEY even though Anthropic uses x-api-key header,
+    // as X_API_KEY is ambiguous (could be from xAI or stale Anthropic key).
+    return pick("ANTHROPIC_OAUTH_TOKEN") ?? pick("ANTHROPIC_API_KEY");
+  }
+
+  if (normalized === "chutes") {
+    return pick("CHUTES_OAUTH_TOKEN") ?? pick("CHUTES_API_KEY");
+  }
+
+  if (normalized === "zai") {
+    return pick("ZAI_API_KEY") ?? pick("Z_AI_API_KEY");
+  }
+
   const candidates = PROVIDER_ENV_API_KEY_CANDIDATES[normalized];
   if (candidates) {
     for (const envVar of candidates) {
